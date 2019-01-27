@@ -2,6 +2,8 @@ from sklearn import manifold, datasets
 from sklearn.metrics.pairwise import pairwise_distances
 from scipy.spatial.distance import squareform
 from matplotlib.patches import Ellipse
+import numpy as np
+import torch
 
 import matplotlib
 matplotlib.use('Agg')
@@ -10,15 +12,44 @@ import numpy as np
 
 from wrapper import Wrapper
 # from tsne import TSNE
+import os
 from vtsne import VTSNE
+import pdb
+import argparse
+
+parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
+parser.add_argument('--save_dir', default='scatter',metavar='DIR',
+                    help='path to dataset')
+parser.add_argument('--epochs', default=1, type=int, metavar='N',
+                    help='number of total epochs to run')
+parser.add_argument('-b', '--batchsize', default=100, type=int,
+                    metavar='N',
+                    help='batch_size for calculating tsne every time')
+parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+                    metavar='LR', help='initial learning rate', dest='lr')
+parser.add_argument('--wd', '--weight_decay', default=0.05, type=float,
+                    metavar='W', help='weight decay (default: 1e-4)',
+                    dest='weight_decay')
+parser.add_argument('-s', '--save_freq', default=100, type=int,
+                    metavar='N', help='save model frequency and lr decay frequency')
+parser.add_argument('--perplexity', default=10, type=int, metavar='N',
+                    help='number of total epochs to run')
+args = parser.parse_args()
 
 
-def preprocess(perplexity=30, metric='euclidean'):
+
+
+
+
+def preprocess(perplexity=args.perplexity, metric='euclidean'):
     """ Compute pairiwse probabilities for MNIST pixels.
     """
     digits = datasets.load_digits(n_class=6)
     pos = digits.data
     y = digits.target
+    # pos = np.load("/mnt/storage/team03/finetune/tsnefeatures_clean_train_97_model_best.npy")
+    # y = np.load("/mnt/storage/team03/finetune/tsnelabels_clean_train_97_model_best.npy")
+
     n_points = pos.shape[0]
     distances2 = pairwise_distances(pos, metric=metric, squared=True)
     # This return a n x (n-1) prob array
@@ -27,7 +58,8 @@ def preprocess(perplexity=30, metric='euclidean'):
     pij = squareform(pij)
     return n_points, pij, y
 
-
+if not os.path.exists(args.save_dir):
+	os.mkdir(args.save_dir)
 draw_ellipse = True
 n_points, pij2d, y = preprocess()
 i, j = np.indices(pij2d.shape)
@@ -43,8 +75,10 @@ n_dim = 2
 print(n_points, n_dim, n_topics)
 
 model = VTSNE(n_points, n_topics, n_dim)
-wrap = Wrapper(model, batchsize=4096, epochs=1)
-for itr in range(500):
+wrap = Wrapper(model, batchsize = args.batchsize, epochs = args.epochs, lr = args.lr)
+for itr in range(1000):
+    # wrap.optimizer = wrap.optimizer.param_groups[0]['lr']*0.05
+    print('Iteration: ', itr )
     wrap.fit(pij, i, j)
 
     # Visualize the results
@@ -53,7 +87,7 @@ for itr in range(500):
     if not draw_ellipse:
         plt.scatter(embed[:, 0], embed[:, 1], c=y * 1.0 / y.max())
         plt.axis('off')
-        plt.savefig('scatter_{:03d}.png'.format(itr), bbox_inches='tight')
+        plt.savefig(args.save_dir+'/scatter_{:03d}.png'.format(itr), bbox_inches='tight')
         plt.close(f)
     else:
         # Visualize with ellipses
@@ -67,7 +101,12 @@ for itr in range(500):
         ax.set_xlim(-9, 9)
         ax.set_ylim(-9, 9)
         plt.axis('off')
-        plt.savefig('scatter_{:03d}.png'.format(itr), bbox_inches='tight')
+        plt.savefig(args.save_dir+'/scatter_{:03d}.png'.format(itr), bbox_inches='tight')
         plt.close(f)
+    if itr%args.save_freq== 0 :
+    	torch.save(model,args.save_dir+'/checkpoint.pth.tar') 
+    	if itr>0:
+            wrap.optimizer.param_groups[0]['lr'] = wrap.optimizer.param_groups[0]['lr']*args.weight_decay
+
 
 

@@ -3,7 +3,7 @@ import random
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
-
+import pdb
 
 def chunks(n, *args):
     """Yield successive n-sized chunks from l."""
@@ -20,17 +20,18 @@ def chunks(n, *args):
 
 class Wrapper():
     def __init__(self, model, cuda=True, log_interval=100, epochs=1000,
-                 batchsize=1024):
+                 batchsize=1024,lr=1e-1):
         self.batchsize = batchsize
         self.epochs = epochs
         self.cuda = cuda
         self.model = model
         if cuda:
             self.model.cuda()
-        self.optimizer = optim.Adam(model.parameters(), lr=1e-2)
+        self.optimizer = optim.Adam(model.parameters(), lr)
         self.log_interval = log_interval
 
     def fit(self, *args):
+        # pdb.set_trace()
         self.model.train()
         if self.cuda:
             self.model.cuda()
